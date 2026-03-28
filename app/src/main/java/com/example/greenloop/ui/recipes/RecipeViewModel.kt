@@ -3,10 +3,10 @@ package com.example.greenloop.ui.recipes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.greenloop.api.GeminiManager
+import com.example.greenloop.api.OpenRouterManager
 import com.example.greenloop.data.model.GeneratedRecipe
+import com.example.greenloop.data.model.GeneratedRecipeList
 import com.example.greenloop.data.model.Ingredient
-import com.example.greenloop.data.model.Recipe
 import com.example.greenloop.data.model.UpcycleHistory
 import com.example.greenloop.data.repository.HistoryRepository
 import com.example.greenloop.data.repository.IngredientRepository
@@ -36,13 +36,13 @@ class RecipeViewModel(
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
-    private val _generatedRecipe = MutableStateFlow<GeneratedRecipe?>(null)
-    val generatedRecipe: StateFlow<GeneratedRecipe?> = _generatedRecipe.asStateFlow()
+    private val _generatedRecipes = MutableStateFlow<List<GeneratedRecipe>>(emptyList())
+    val generatedRecipes: StateFlow<List<GeneratedRecipe>> = _generatedRecipes.asStateFlow()
 
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
-    private val adapter = moshi.adapter(GeneratedRecipe::class.java)
+    private val listAdapter = moshi.adapter(GeneratedRecipeList::class.java)
 
     fun toggleIngredientSelection(id: Int) {
         _selectedIngredients.update { current ->
@@ -50,7 +50,7 @@ class RecipeViewModel(
         }
     }
 
-    fun generateAiRecipe() {
+    fun generateAiRecipes() {
         val selectedIds = _selectedIngredients.value
         if (selectedIds.isEmpty()) return
 
@@ -61,27 +61,31 @@ class RecipeViewModel(
                     .filter { it.id in selectedIds }
                     .joinToString(", ") { it.name }
 
-                val prompt = """
-                    Generate a simple waste-reducing recipe using these ingredients: $selectedNames.
-                    The recipe must be optimized to rescue these items from being wasted.
-                    Response MUST be a strict JSON object with this structure:
+                val systemPrompt = """
+                    You are a creative Zero-Waste Chef. Your task is to generate exactly THREE recipes using the provided ingredients to prevent them from going to waste.
+                    
+                    Return ONLY a JSON object with this structure:
                     {
-                      "recipeName": "String",
-                      "prepTimeMinutes": Int,
-                      "steps": ["Step 1", "Step 2", ...]
+                      "recipes": [
+                        {
+                          "recipeName": "string",
+                          "prepTimeMinutes": integer,
+                          "difficulty": "Easy/Medium/Hard",
+                          "steps": ["step 1", "step 2", ...]
+                        }
+                      ]
                     }
-                    Only return the JSON.
                 """.trimIndent()
 
-                val response = GeminiManager.model.generateContent(prompt)
-                val responseText = response.text ?: ""
+                val prompt = "Generate 3 recipes using these ingredients: $selectedNames"
+
+                val responseText = OpenRouterManager.analyzeText(prompt, systemPrompt) ?: ""
                 
-                // Clean the response if it contains markdown code blocks
                 val jsonString = responseText.substringAfter("```json").substringBeforeLast("```").trim()
                 val finalJson = if (jsonString.isEmpty()) responseText.trim() else jsonString
                 
-                val recipe = adapter.fromJson(finalJson)
-                _generatedRecipe.value = recipe
+                val result = listAdapter.fromJson(finalJson)
+                _generatedRecipes.value = result?.recipes ?: emptyList()
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -90,16 +94,15 @@ class RecipeViewModel(
         }
     }
 
-    fun completeGeneratedRecipe() {
-        val recipe = _generatedRecipe.value ?: return
+    fun completeRecipe(recipe: GeneratedRecipe) {
         val selectedIds = _selectedIngredients.value
 
         viewModelScope.launch {
             // Save to history
             val history = UpcycleHistory(
-                recipeId = -1, // AI generated
+                recipeId = -1,
                 recipeTitle = recipe.recipeName,
-                co2Saved = selectedIds.size * 0.5 // Estimated 0.5kg per ingredient rescued
+                co2Saved = selectedIds.size * 0.5 
             )
             historyRepository.insertHistory(history)
 
@@ -109,7 +112,7 @@ class RecipeViewModel(
             }
 
             // Reset state
-            _generatedRecipe.value = null
+            _generatedRecipes.value = emptyList()
             _selectedIngredients.value = emptySet()
         }
     }

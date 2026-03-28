@@ -1,18 +1,23 @@
 package com.example.greenloop.ui.progress
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,11 +30,20 @@ import java.util.*
 @Composable
 fun SustainabilityTrackerScreen(viewModel: ProgressViewModel) {
     val history by viewModel.history.collectAsStateWithLifecycle()
-    val totalCo2 by viewModel.totalCo2Saved.collectAsStateWithLifecycle()
+    val totalPrice by viewModel.totalPrice.collectAsStateWithLifecycle()
+    val totalCalories by viewModel.totalCalories.collectAsStateWithLifecycle()
+    val totalProtein by viewModel.totalProtein.collectAsStateWithLifecycle()
+    val timeline by viewModel.spendingTimeline.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Sustainability Progress", fontWeight = FontWeight.Bold) })
+            CenterAlignedTopAppBar(
+                title = { Text("Progress & Insights", fontWeight = FontWeight.ExtraBold) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
         }
     ) { padding ->
         LazyColumn(
@@ -40,15 +54,46 @@ fun SustainabilityTrackerScreen(viewModel: ProgressViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            // Nutritional & Financial Stats Row
             item {
-                Co2ProgressIndicator(
-                    current = totalCo2.toFloat(),
-                    goal = viewModel.weeklyGoal.toFloat()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        label = "Total Price",
+                        value = "$${String.format(Locale.US, "%.2f", totalPrice)}",
+                        icon = Icons.Default.Payments,
+                        color = Color(0xFF4CAF50)
+                    )
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        label = "Calories",
+                        value = "$totalCalories",
+                        icon = Icons.Default.LocalFireDepartment,
+                        color = Color(0xFFFF7043)
+                    )
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        label = "Protein",
+                        value = "${String.format(Locale.US, "%.1f", totalProtein)}g",
+                        icon = Icons.Default.Restaurant,
+                        color = Color(0xFF2196F3)
+                    )
+                }
             }
 
+            // Price Timeline Graph
             item {
-                ImpactSummaryCard(totalCo2)
+                Text(
+                    text = "Spending Timeline",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                PriceTimelineGraph(timeline)
             }
 
             item {
@@ -79,72 +124,84 @@ fun SustainabilityTrackerScreen(viewModel: ProgressViewModel) {
 }
 
 @Composable
-fun Co2ProgressIndicator(current: Float, goal: Float) {
-    val progress = (current / goal).coerceIn(0f, 1f)
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress,
-        animationSpec = tween(durationMillis = 1000)
-    )
-
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp)) {
-        Canvas(modifier = Modifier.size(180.dp)) {
-            drawArc(
-                color = Color.LightGray.copy(alpha = 0.3f),
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-            )
-            drawArc(
-                color = Color(0xFF4CAF50),
-                startAngle = -90f,
-                sweepAngle = 360f * animatedProgress,
-                useCenter = false,
-                style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
-            )
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "%.1f".format(current),
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF2E7D32)
-            )
-            Text(
-                text = "kg CO2 Saved",
-                style = MaterialTheme.typography.labelMedium
-            )
-            Text(
-                text = "Goal: ${goal.toInt()}kg",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
+fun StatCard(modifier: Modifier, label: String, value: String, icon: ImageVector, color: Color) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            Text(text = value, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = color)
+            Text(text = label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }
     }
 }
 
 @Composable
-fun ImpactSummaryCard(totalCo2: Double) {
+fun PriceTimelineGraph(points: List<SpendingTimelinePoint>) {
+    if (points.isEmpty()) {
+        Card(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Text("No spending data yet", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        return
+    }
+
+    val maxAmount = points.maxOf { it.totalAmount }.toFloat().coerceAtLeast(1f)
+    
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp),
+        shape = RoundedCornerShape(24.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "🌍", fontSize = 40.sp)
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(
-                    text = "Your Impact",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "You've saved enough CO2 to offset ${"%.1f".format(totalCo2 * 0.5)} days of driving!",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Canvas(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                val width = size.width
+                val height = size.height
+                val spaceBetween = width / (points.size.coerceAtLeast(2) - 1).coerceAtLeast(1)
+
+                val pathPoints = points.mapIndexed { index, point ->
+                    Offset(
+                        x = index * spaceBetween,
+                        y = height - (point.totalAmount.toFloat() / maxAmount * height)
+                    )
+                }
+
+                // Draw line
+                for (i in 0 until pathPoints.size - 1) {
+                    drawLine(
+                        color = Color(0xFF4CAF50),
+                        start = pathPoints[i],
+                        end = pathPoints[i + 1],
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                // Draw dots
+                pathPoints.forEach { center ->
+                    drawCircle(color = Color(0xFF4CAF50), radius = 4.dp.toPx(), center = center)
+                }
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                points.forEach { point ->
+                    Text(
+                        text = point.dateLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 10.sp,
+                        color = Color.Gray
+                    )
+                }
             }
         }
     }
@@ -174,12 +231,7 @@ fun HistoryItemRow(entry: UpcycleHistory) {
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-            Text(
-                text = "+${entry.co2Saved}kg",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF2E7D32),
-                fontWeight = FontWeight.Bold
-            )
+            // CO2 still saved in model, but we'll hide it from UI as requested
         }
     }
 }

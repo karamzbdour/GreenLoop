@@ -1,17 +1,31 @@
 package com.example.greenloop.ui.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.greenloop.data.model.Ingredient
 import java.text.SimpleDateFormat
@@ -24,6 +38,7 @@ import com.google.accompanist.permissions.isGranted
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel) {
     val inventoryItems by viewModel.inventoryItems.collectAsStateWithLifecycle()
+    val totalPrice by viewModel.totalPrice.collectAsStateWithLifecycle()
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
     var showCamera by remember { mutableStateOf(false) }
     
@@ -47,47 +62,91 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
     } else {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = { Text("Fridge & Cupboard", fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.topAppBarColors(
+                CenterAlignedTopAppBar(
+                    title = { 
+                        Text(
+                            "GreenLoop Fridge", 
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp
+                        ) 
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 )
             },
             floatingActionButton = {
-                LargeFloatingActionButton(
+                FloatingActionButton(
                     onClick = { showCamera = true },
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = CircleShape
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = "Scan Receipt")
                 }
             }
         ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Inventory",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+            Box(modifier = Modifier.padding(padding)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // Summary Card
+                    TotalValueCard(totalPrice, inventoryItems.size)
 
-                if (inventoryItems.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Your fridge is empty! Scan a receipt to stock up.")
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Text(
+                        text = "My Inventory",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (inventoryItems.isEmpty()) {
+                        EmptyInventoryPlaceholder()
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(bottom = 80.dp)
+                        ) {
+                            items(inventoryItems, key = { it.id }) { item ->
+                                IngredientCard(
+                                    item = item,
+                                    onDelete = { viewModel.deleteIngredient(item) }
+                                )
+                            }
+                        }
                     }
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                }
+                
+                // Scanning Overlay
+                AnimatedVisibility(
+                    visible = isScanning,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        items(inventoryItems) { item ->
-                            IngredientCard(item)
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("Analyzing Receipt...", fontWeight = FontWeight.Medium)
+                            }
                         }
                     }
                 }
@@ -97,67 +156,230 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
 }
 
 @Composable
-fun IngredientCard(item: Ingredient) {
-    val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    val dateString = sdf.format(Date(item.expiryDate))
-    
+fun TotalValueCard(totalPrice: Double, itemCount: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary
+                        )
+                    )
+                )
+                .padding(24.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Category: ${item.category}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                item.quantity?.let {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
                     Text(
-                        text = "Quantity: $it",
-                        style = MaterialTheme.typography.bodySmall
+                        text = "Total Value",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = "$${String.format(Locale.US, "%.2f", totalPrice)}",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "$itemCount Items",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
-            
-            val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
-            val badgeColor = when {
-                daysRemaining < 0 -> Color.Gray // Expired
-                daysRemaining <= 1 -> Color.Red // Critical
-                daysRemaining <= 3 -> Color(0xFFFFA000) // Warning (Orange)
-                else -> MaterialTheme.colorScheme.primary // Safe
-            }
-            
-            val statusText = when {
-                daysRemaining < 0 -> "Expired"
-                daysRemaining == 0 -> "Expires Today"
-                daysRemaining == 1 -> "Expires Tomorrow"
-                else -> "$daysRemaining days left"
-            }
-            
-            Surface(
-                color = badgeColor,
-                shape = MaterialTheme.shapes.small
-            ) {
-                Text(
-                    text = statusText,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White
-                )
-            }
         }
+    }
+}
+
+@Composable
+fun IngredientCard(item: Ingredient, onDelete: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = item.category,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        Icons.Default.Delete, 
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Nutritional Info
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    NutrientBadge(
+                        icon = Icons.Default.LocalFireDepartment,
+                        value = "${item.calories ?: 0}",
+                        label = "kcal",
+                        color = Color(0xFFFF7043)
+                    )
+                    NutrientBadge(
+                        icon = Icons.Default.Restaurant,
+                        value = "${String.format(Locale.US, "%.1f", item.protein ?: 0.0)}g",
+                        label = "protein",
+                        color = Color(0xFF4CAF50)
+                    )
+                }
+
+                // Price Tag
+                item.price?.let {
+                    Text(
+                        text = "$${String.format(Locale.US, "%.2f", it)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Expiry Progress
+            val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
+            ExpiryStatus(daysRemaining)
+        }
+    }
+}
+
+@Composable
+fun NutrientBadge(icon: ImageVector, value: String, label: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            icon, 
+            contentDescription = null, 
+            tint = color,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Column {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 12.sp
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 8.sp,
+                lineHeight = 8.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun ExpiryStatus(daysRemaining: Int) {
+    val (statusText, color) = when {
+        daysRemaining < 0 -> "Expired" to Color.Gray
+        daysRemaining == 0 -> "Expires Today" to Color(0xFFD32F2F)
+        daysRemaining == 1 -> "Expires Tomorrow" to Color(0xFFF57C00)
+        daysRemaining <= 3 -> "$daysRemaining days left" to Color(0xFFFFA000)
+        else -> "$daysRemaining days left" to Color(0xFF388E3C)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(color.copy(alpha = 0.1f))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = statusText,
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun EmptyInventoryPlaceholder() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(bottom = 64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.Fastfood,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.primaryContainer
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "Your fridge is empty!",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "Scan a receipt to start tracking.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

@@ -10,5 +10,9 @@ data class Ingredient(
     val category: String, // e.g., Dairy, Vegetable, Fruit, Cupboard
     val expiryDate: Long, // Timestamp
     val quantity: String? = null,
-    val addedDate: Long = System.currentTimeMillis()
+    val addedDate: Long = System.currentTimeMillis(),
+    val price: Double? = null,
+    val calories: Int? = null,
+    val protein: Double? = null,
+    val isExpired: Boolean = false
 )

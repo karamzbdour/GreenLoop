@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import com.example.greenloop.GreenLoopApplication
 import com.example.greenloop.ui.dashboard.DashboardScreen
 import com.example.greenloop.ui.dashboard.DashboardViewModel
+import com.example.greenloop.ui.ingredients.IngredientsScreen
 import com.example.greenloop.ui.profile.ProfileScreen
 import com.example.greenloop.ui.profile.ProfileViewModel
 import com.example.greenloop.ui.progress.ProgressViewModel
@@ -31,6 +32,12 @@ fun NavGraph(navController: NavHostController) {
             )
             DashboardScreen(viewModel = viewModel)
         }
+        composable(Screen.Ingredients.route) {
+            val viewModel: DashboardViewModel = viewModel(
+                factory = DashboardViewModel.Factory(app.ingredientRepository)
+            )
+            IngredientsScreen(viewModel = viewModel)
+        }
         composable(Screen.Recipes.route) {
             val viewModel: RecipeViewModel = viewModel(
                 factory = RecipeViewModel.Factory(
@@ -44,7 +51,7 @@ fun NavGraph(navController: NavHostController) {
         }
         composable(Screen.Progress.route) {
             val viewModel: ProgressViewModel = viewModel(
-                factory = ProgressViewModel.Factory(app.historyRepository)
+                factory = ProgressViewModel.Factory(app.historyRepository, app.ingredientRepository)
             )
             SustainabilityTrackerScreen(viewModel = viewModel)
         }

@@ -30,7 +30,7 @@ fun NavGraph(navController: NavHostController) {
     ) {
         composable(Screen.Dashboard.route) {
             val viewModel: DashboardViewModel = viewModel(
-                factory = DashboardViewModel.Factory(app.ingredientRepository)
+                factory = DashboardViewModel.Factory(app.ingredientRepository, app.recipeRepository)
             )
             DashboardScreen(
                 viewModel = viewModel,
@@ -41,7 +41,7 @@ fun NavGraph(navController: NavHostController) {
         }
         composable(Screen.Ingredients.route) {
             val viewModel: DashboardViewModel = viewModel(
-                factory = DashboardViewModel.Factory(app.ingredientRepository)
+                factory = DashboardViewModel.Factory(app.ingredientRepository, app.recipeRepository)
             )
             IngredientsScreen(
                 viewModel = viewModel,
@@ -73,7 +73,11 @@ fun NavGraph(navController: NavHostController) {
         }
         composable(Screen.Profile.route) {
             val viewModel: ProfileViewModel = viewModel(
-                factory = ProfileViewModel.Factory(app.userRepository, app.historyRepository)
+                factory = ProfileViewModel.Factory(
+                    app.userRepository,
+                    app.historyRepository,
+                    app.ingredientRepository
+                )
             )
             ProfileScreen(viewModel = viewModel)
         }

@@ -28,8 +28,9 @@ fun ProfileScreen(viewModel: ProfileViewModel) {
     val recipesMadeCount by viewModel.recipesMadeCount.collectAsStateWithLifecycle()
     val totalMoneySaved by viewModel.totalMoneySaved.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val pastFiveRecipes by viewModel.pastFiveRecipes.collectAsStateWithLifecycle()
     
-    var showHistory by remember { mutableStateOf(false) }
+    var showFullHistory by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -42,14 +43,14 @@ fun ProfileScreen(viewModel: ProfileViewModel) {
             )
         }
     ) { padding ->
-        if (showHistory) {
+        if (showFullHistory) {
             PastRecipesView(
                 history = history,
-                onBack = { showHistory = false },
+                onBack = { showFullHistory = false },
                 modifier = Modifier.padding(padding)
             )
         } else {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -57,54 +58,82 @@ fun ProfileScreen(viewModel: ProfileViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                Text(
-                    text = "Your Impact So Far",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        label = "Recipes Made",
-                        value = recipesMadeCount.toString(),
-                        icon = Icons.Default.RestaurantMenu,
-                        color = Color(0xFF4CAF50)
-                    )
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        label = "Money Saved",
-                        value = "£${String.format(Locale.UK, "%.2f", totalMoneySaved)}",
-                        icon = Icons.Default.Payments,
-                        color = Color(0xFF2196F3)
+                item {
+                    Text(
+                        text = "Your Impact So Far",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = { showHistory = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(16.dp)
-                ) {
-                    Icon(Icons.Default.History, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Past Recipes", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        MetricCard(
+                            modifier = Modifier.weight(1f),
+                            label = "Dishes Made",
+                            value = recipesMadeCount.toString(),
+                            icon = Icons.Default.RestaurantMenu,
+                            color = Color(0xFF4CAF50)
+                        )
+                        MetricCard(
+                            modifier = Modifier.weight(1f),
+                            label = "Money Saved",
+                            value = "£${String.format(Locale.UK, "%.2f", totalMoneySaved)}",
+                            icon = Icons.Default.Payments,
+                            color = Color(0xFF2196F3)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
-                
-                Text(
-                    text = "Every recipe you complete helps reduce waste and save resources. Keep up the great work!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+                if (pastFiveRecipes.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent Recipes",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            TextButton(onClick = { showFullHistory = true }) {
+                                Text("View All")
+                            }
+                        }
+                    }
+
+                    items(pastFiveRecipes) { entry ->
+                        HistoryItemCard(entry)
+                    }
+                } else {
+                    item {
+                        Button(
+                            onClick = { showFullHistory = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(16.dp)
+                        ) {
+                            Icon(Icons.Default.History, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Recipe History", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Every recipe you complete helps reduce waste and save resources. Keep up the great work!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             }
         }
     }
@@ -163,7 +192,7 @@ fun PastRecipesView(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Recipe History",
+                text = "Full History",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -214,12 +243,14 @@ fun HistoryItemCard(entry: UpcycleHistory) {
                     color = Color.Gray
                 )
             }
-            Text(
-                text = "+£${String.format(Locale.UK, "%.2f", entry.moneySaved)}",
-                color = Color(0xFF4CAF50),
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            if (entry.moneySaved > 0) {
+                Text(
+                    text = "+£${String.format(Locale.UK, "%.2f", entry.moneySaved)}",
+                    color = Color(0xFF4CAF50),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
 }

@@ -66,9 +66,10 @@ class RecipeViewModel(
             _isGenerating.value = true
             _errorMessage.value = null
             try {
-                val selectedNames = inventory.value
+                val selectedItems = inventory.value
                     .filter { it.id in selectedIds && (it.quantity?.removePrefix("x")?.toIntOrNull() ?: 1) > 0 }
-                    .joinToString(", ") { it.name }
+                
+                val selectedNames = selectedItems.joinToString(", ") { it.name }
 
                 if (selectedNames.isEmpty()) {
                     _errorMessage.value = "Selected ingredients are out of stock."
@@ -84,7 +85,9 @@ class RecipeViewModel(
                         "recipeName": "String",
                         "prepTimeMinutes": Int,
                         "difficulty": "Easy/Medium/Hard",
-                        "steps": ["Step 1", "Step 2", ...]
+                        "steps": ["Step 1", "Step 2", ...],
+                        "calories": Int (per serving),
+                        "protein": Int (grams per serving)
                       }
                     ]
                     Only return the JSON array.
@@ -100,6 +103,8 @@ class RecipeViewModel(
                     _errorMessage.value = "No recipes could be generated. Please try again."
                 } else {
                     _generatedRecipes.value = recipes
+                    // Increment the counter in DataStore
+                    userRepository.incrementRecipesGenerated()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -125,11 +130,41 @@ class RecipeViewModel(
                 preparationTime = recipe.prepTimeMinutes,
                 difficulty = recipe.difficulty,
                 co2Saved = co2Saved,
-                isWasteReducing = true
+                isWasteReducing = true,
+                calories = recipe.calories,
+                protein = recipe.protein
             )
             recipeRepository.insertRecipe(newRecipe)
             
             _generatedRecipes.update { current -> current.filter { it.recipeName != recipe.recipeName } }
+        }
+    }
+
+    fun completeRecipe(recipe: Recipe) {
+        viewModelScope.launch {
+            val recipeIngredients = recipe.ingredients.split(",").map { it.trim().lowercase() }
+            
+            var moneySavedFromRecipe = 0.0
+            
+            inventory.value.forEach { item ->
+                if (recipeIngredients.any { it.contains(item.name.lowercase()) || item.name.lowercase().contains(it) }) {
+                    val currentQty = item.quantity?.removePrefix("x")?.toIntOrNull() ?: 0
+                    if (currentQty > 0) {
+                        ingredientRepository.updateIngredient(item.copy(
+                            quantity = "x${currentQty - 1}",
+                            wasRemovedManually = currentQty <= 1
+                        ))
+                        moneySavedFromRecipe += (item.price ?: 0.0)
+                    }
+                }
+            }
+
+            historyRepository.insertHistory(UpcycleHistory(
+                recipeId = recipe.id,
+                recipeTitle = recipe.title,
+                co2Saved = recipe.co2Saved,
+                moneySaved = moneySavedFromRecipe
+            ))
         }
     }
 

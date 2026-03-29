@@ -7,5 +7,7 @@ data class GeneratedRecipe(
     val recipeName: String,
     val prepTimeMinutes: Int,
     val difficulty: String,
-    val steps: List<String>
+    val steps: List<String>,
+    val calories: Int,
+    val protein: Int
 )

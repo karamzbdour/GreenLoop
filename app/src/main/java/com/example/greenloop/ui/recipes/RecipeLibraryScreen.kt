@@ -68,7 +68,8 @@ fun RecipeLibraryScreen(viewModel: RecipeViewModel) {
                 )
                 1 -> SavedRecipesTab(
                     savedRecipes = savedRecipes,
-                    onDelete = { viewModel.deleteSavedRecipe(it) }
+                    onDelete = { viewModel.deleteSavedRecipe(it) },
+                    onComplete = { viewModel.completeRecipe(it) }
                 )
             }
         }
@@ -186,7 +187,11 @@ fun RecipeBuilderTab(
 }
 
 @Composable
-fun SavedRecipesTab(savedRecipes: List<Recipe>, onDelete: (Recipe) -> Unit) {
+fun SavedRecipesTab(
+    savedRecipes: List<Recipe>, 
+    onDelete: (Recipe) -> Unit,
+    onComplete: (Recipe) -> Unit
+) {
     if (savedRecipes.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -211,7 +216,11 @@ fun SavedRecipesTab(savedRecipes: List<Recipe>, onDelete: (Recipe) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(savedRecipes) { recipe ->
-                SavedRecipeCard(recipe = recipe, onDelete = { onDelete(recipe) })
+                SavedRecipeCard(
+                    recipe = recipe, 
+                    onDelete = { onDelete(recipe) },
+                    onComplete = { onComplete(recipe) }
+                )
             }
         }
     }
@@ -359,7 +368,7 @@ fun GeneratedRecipeCard(
 }
 
 @Composable
-fun SavedRecipeCard(recipe: Recipe, onDelete: () -> Unit) {
+fun SavedRecipeCard(recipe: Recipe, onDelete: () -> Unit, onComplete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
     Card(
@@ -424,6 +433,20 @@ fun SavedRecipeCard(recipe: Recipe, onDelete: () -> Unit) {
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Button(
+                        onClick = onComplete,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Mark as Complete")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
                         "Instructions:",
                         style = MaterialTheme.typography.titleSmall,

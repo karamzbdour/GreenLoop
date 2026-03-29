@@ -14,5 +14,7 @@ data class Recipe(
     val difficulty: String, // Easy, Medium, Hard
     val co2Saved: Double, // in kg
     val isWasteReducing: Boolean = true,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val calories: Int = 0,
+    val protein: Int = 0
 )

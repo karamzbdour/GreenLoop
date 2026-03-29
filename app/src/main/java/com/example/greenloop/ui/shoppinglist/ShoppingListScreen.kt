@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,6 +48,10 @@ fun ShoppingListScreen(viewModel: ShoppingListViewModel) {
     val items by viewModel.suggestedItems.collectAsStateWithLifecycle()
     // State to track checked items locally
     val checkedItems = remember { mutableStateMapOf<String, Boolean>() }
+    var showAllSuggestions by remember { mutableStateOf(false) }
+
+    val displayedItems = if (showAllSuggestions) items else items.take(15)
+    val hasMoreItems = items.size > 15
 
     Scaffold(
         topBar = {
@@ -87,9 +92,10 @@ fun ShoppingListScreen(viewModel: ShoppingListViewModel) {
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    items(items) { itemName ->
+                    items(displayedItems) { itemName ->
                         val isChecked = checkedItems[itemName] ?: false
                         Card(
                             modifier = Modifier
@@ -104,7 +110,7 @@ fun ShoppingListScreen(viewModel: ShoppingListViewModel) {
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .padding(16.dp)
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
                                     .fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -120,6 +126,23 @@ fun ShoppingListScreen(viewModel: ShoppingListViewModel) {
                                     textDecoration = if (isChecked) TextDecoration.LineThrough else TextDecoration.None,
                                     color = if (isChecked) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
                                 )
+                            }
+                        }
+                    }
+
+                    if (hasMoreItems && !showAllSuggestions) {
+                        item {
+                            TextButton(
+                                onClick = { showAllSuggestions = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.ExpandMore, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Show more suggestions (${items.size - 15})")
+                                }
                             }
                         }
                     }

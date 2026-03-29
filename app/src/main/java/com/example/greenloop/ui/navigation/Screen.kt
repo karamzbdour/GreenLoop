@@ -22,6 +22,5 @@ val bottomNavItems = listOf(
     Screen.Dashboard,
     Screen.ShoppingList,
     Screen.Recipes,
-    Screen.Progress,
     Screen.Profile
 )

@@ -48,6 +48,12 @@ fun DashboardScreen(
     
     val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 
+    // Items expiring in under 3 days
+    val expiringSoonItems = inventoryItems.filter { item ->
+        val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
+        daysRemaining < 3
+    }
+
     if (showCamera) {
         if (cameraPermissionState.status.isGranted) {
             CameraView(
@@ -188,28 +194,18 @@ fun DashboardScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    if (inventoryItems.isEmpty()) {
+                    if (expiringSoonItems.isEmpty()) {
                         EmptyInventoryPlaceholder()
                     } else {
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(bottom = 80.dp)
                         ) {
-                            items(inventoryItems.take(5), key = { it.id }) { item ->
+                            items(expiringSoonItems, key = { it.id }) { item ->
                                 IngredientCard(
                                     item = item,
                                     onDelete = { viewModel.deleteIngredient(item) }
                                 )
-                            }
-                            if (inventoryItems.size > 5) {
-                                item {
-                                    TextButton(
-                                        onClick = onNavigateToInventory,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("View All Inventory (${inventoryItems.size})")
-                                    }
-                                }
                             }
                         }
                     }
@@ -364,12 +360,12 @@ fun EmptyInventoryPlaceholder() {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "Your fridge is empty!",
+            "Nothing expiring soon!",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Scan a receipt to start tracking.",
+            "Your items are all safe for now.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

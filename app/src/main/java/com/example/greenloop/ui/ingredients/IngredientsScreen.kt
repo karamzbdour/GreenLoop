@@ -1,29 +1,43 @@
 package com.example.greenloop.ui.ingredients
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.greenloop.data.model.Ingredient
 import com.example.greenloop.ui.dashboard.DashboardViewModel
+import com.example.greenloop.ui.dashboard.ExpiryStatus
+import com.example.greenloop.ui.dashboard.NutrientBadge
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IngredientsScreen(viewModel: DashboardViewModel) {
+fun IngredientsScreen(
+    viewModel: DashboardViewModel,
+    onBack: () -> Unit = {}
+) {
     val inventoryItems by viewModel.inventoryItems.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
 
@@ -31,6 +45,14 @@ fun IngredientsScreen(viewModel: DashboardViewModel) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Inventory", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -63,10 +85,9 @@ fun IngredientsScreen(viewModel: DashboardViewModel) {
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(inventoryItems, key = { it.id }) { item ->
-                        IngredientItemCard(
+                        DashboardIngredientCard(
                             item = item,
-                            onDelete = { viewModel.deleteIngredient(item) },
-                            onMarkExpired = { viewModel.markAsExpired(item) }
+                            onDelete = { viewModel.deleteIngredient(item) }
                         )
                     }
                 }
@@ -86,64 +107,59 @@ fun IngredientsScreen(viewModel: DashboardViewModel) {
 }
 
 @Composable
-fun IngredientItemCard(
-    item: Ingredient,
-    onDelete: () -> Unit,
-    onMarkExpired: () -> Unit
-) {
+fun DashboardIngredientCard(item: Ingredient, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = item.name,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (item.isExpired) Color.Gray else MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = item.category,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
                     )
                 }
-                Row {
-                    if (!item.isExpired) {
-                        TextButton(onClick = onMarkExpired) {
-                            Text("Expire", color = Color(0xFFF57C00))
-                        }
-                    }
-                    TextButton(onClick = onDelete) {
-                        Text("Remove", color = MaterialTheme.colorScheme.error)
-                    }
+                
+                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        Icons.Default.Delete, 
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Price: £${String.format(Locale.UK, "%.2f", item.price ?: 0.0)}")
             }
 
-            if (item.isExpired) {
-                Text(
-                    "EXPIRED",
-                    color = Color.Red,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.align(Alignment.End)
-                )
-            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Expiry Progress
+            val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
+            ExpiryStatus(daysRemaining)
         }
     }
 }

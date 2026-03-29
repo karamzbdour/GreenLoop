@@ -1,10 +1,10 @@
 package com.example.greenloop.ui.recipes
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
@@ -26,12 +26,12 @@ fun RecipeLibraryScreen(viewModel: RecipeViewModel) {
     val inventory by viewModel.inventory.collectAsStateWithLifecycle()
     val selectedIds by viewModel.selectedIngredients.collectAsStateWithLifecycle()
     val isGenerating by viewModel.isGenerating.collectAsStateWithLifecycle()
-    val generatedRecipes by viewModel.generatedRecipes.collectAsStateWithLifecycle()
+    val generatedRecipe by viewModel.generatedRecipe.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Zero-Waste Chef", fontWeight = FontWeight.Bold) },
+                title = { Text("AI Recipe Generator", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -53,8 +53,7 @@ fun RecipeLibraryScreen(viewModel: RecipeViewModel) {
             
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Selection List
-            Box(modifier = Modifier.weight(0.4f)) {
+            Box(modifier = Modifier.weight(if (generatedRecipe == null) 1f else 0.4f)) {
                 if (inventory.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No ingredients in inventory. Scan a receipt first!")
@@ -75,7 +74,7 @@ fun RecipeLibraryScreen(viewModel: RecipeViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { viewModel.generateAiRecipes() },
+                onClick = { viewModel.generateAiRecipe() },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = selectedIds.isNotEmpty() && !isGenerating,
                 shape = MaterialTheme.shapes.large,
@@ -90,30 +89,23 @@ fun RecipeLibraryScreen(viewModel: RecipeViewModel) {
                 } else {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generate 3 Recipes")
+                    Text("Generate Waste-Reducing Recipe")
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Generated Recipes List
             AnimatedVisibility(
-                visible = generatedRecipes.isNotEmpty(),
-                modifier = Modifier.weight(0.6f),
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut()
+                visible = generatedRecipe != null,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+                modifier = Modifier.weight(if (generatedRecipe != null) 0.6f else 0.001f)
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(generatedRecipes) { recipe ->
-                        GeneratedRecipeCard(
-                            recipe = recipe,
-                            onComplete = { viewModel.completeRecipe(recipe) }
-                        )
-                    }
+                generatedRecipe?.let { recipe ->
+                    GeneratedRecipeCard(
+                        recipe = recipe,
+                        onComplete = { viewModel.completeGeneratedRecipe() }
+                    )
                 }
             }
         }
@@ -165,11 +157,9 @@ fun GeneratedRecipeCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -177,47 +167,62 @@ fun GeneratedRecipeCard(
             ) {
                 Text(
                     text = recipe.recipeName,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.weight(1f)
                 )
-                Column(horizontalAlignment = Alignment.End) {
-                    Badge(containerColor = MaterialTheme.colorScheme.tertiaryContainer) {
-                        Text(recipe.difficulty, modifier = Modifier.padding(4.dp))
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Timer, null, modifier = Modifier.size(14.dp))
-                        Text(" ${recipe.prepTimeMinutes}m", style = MaterialTheme.typography.labelSmall)
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("${recipe.prepTimeMinutes}m", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Text("Steps:", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-            
-            recipe.steps.take(3).forEachIndexed { index, step ->
-                Text(
-                    text = "${index + 1}. $step",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 2.dp),
-                    maxLines = 2
-                )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(recipe.steps.size) { index ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        Surface(
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    "${index + 1}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(recipe.steps[index], style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
-            if (recipe.steps.size > 3) Text("...", style = MaterialTheme.typography.bodySmall)
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = onComplete,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.CheckCircle, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Make Recipe")
+                Text("Rescue Ingredients & Complete")
             }
         }
     }

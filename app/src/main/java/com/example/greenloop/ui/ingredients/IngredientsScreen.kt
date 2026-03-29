@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -131,7 +133,13 @@ fun IngredientItemCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Price: £${String.format(Locale.UK, "%.2f", item.price ?: 0.0)}")
+                Text("Price: $${String.format(Locale.US, "%.2f", item.price ?: 0.0)}")
+                if (item.calories != null && item.calories > 0) {
+                    Text("Cals: ${item.calories}")
+                }
+                if (item.protein != null && item.protein > 0) {
+                    Text("Prot: ${item.protein}g")
+                }
             }
 
             if (item.isExpired) {

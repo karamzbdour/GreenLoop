@@ -44,6 +44,10 @@ object OpenRouterManager {
             1. Mandatory Fields: human_readable_name, price, and shop_date.
             2. Date Fallback: If shop_date is missing, use March 28, 2026.
             3. Name Standardization: Convert receipt abbreviations into clean, professional titles. 
+               Examples: 
+               - "ORG STRAWBRY 1LB" -> "Organic Strawberries"
+               - "LURPAK SLTD 250G" -> "Lurpak Salted Butter"
+               - "CHICK BRST FLLT" -> "Chicken Breast Fillets"
             4. No Hallucinations: If a value is unknown, set to null. Do not invent data.
             5. Expiry Logic: Calculate 'days_to_expiry' based on standard USDA FoodKeeper shelf-life from the shop_date.
 
@@ -54,38 +58,38 @@ object OpenRouterManager {
                 "shop_name": "string",
                 "shop_date": "YYYY-MM-DD",
                 "total_price": float,
-                "currency": "GBP"
+                "currency": "string"
               },
               "items": [
                 {
-                  "raw_text": "string",
-                  "human_readable_name": "string",
+                  "raw_text": "string (original receipt line)",
+                  "human_readable_name": "string (cleaned name)",
                   "price": float,
-                  "category": "string",
+                  "category": "string (e.g., Dairy, Produce, Meat, Bakery, Pantry)",
                   "days_to_expiry": integer
                 }
               ]
             }
         """.trimIndent()
 
-        return getChatCompletion(listOf(
-            Message(role = "system", content = listOf(MessageContent(type = "text", text = systemPrompt))),
-            Message(role = "user", content = listOf(MessageContent(type = "image_url", imageUrl = ImageUrl(url = "data:image/jpeg;base64,${base64Image}"))))
-        ))
-    }
+        val request = OpenRouterRequest(
+            messages = listOf(
+                Message(
+                    role = "system",
+                    content = listOf(MessageContent(type = "text", text = systemPrompt))
+                ),
+                Message(
+                    role = "user",
+                    content = listOf(
+                        MessageContent(
+                            type = "image_url",
+                            imageUrl = ImageUrl(url = "data:image/jpeg;base64,${base64Image}")
+                        )
+                    )
+                )
+            )
+        )
 
-    suspend fun analyzeText(prompt: String, systemPrompt: String? = null): String? {
-        val messages = mutableListOf<Message>()
-        if (systemPrompt != null) {
-            messages.add(Message(role = "system", content = listOf(MessageContent(type = "text", text = systemPrompt))))
-        }
-        messages.add(Message(role = "user", content = listOf(MessageContent(type = "text", text = prompt))))
-        
-        return getChatCompletion(messages)
-    }
-
-    private suspend fun getChatCompletion(messages: List<Message>): String? {
-        val request = OpenRouterRequest(messages = messages)
         return try {
             val response = service.getCompletion(
                 apiKey = "Bearer ${BuildConfig.OPENROUTER_API_KEY}",

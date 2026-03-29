@@ -30,10 +30,7 @@ fun NavGraph(navController: NavHostController) {
             val viewModel: DashboardViewModel = viewModel(
                 factory = DashboardViewModel.Factory(app.ingredientRepository)
             )
-            DashboardScreen(
-                viewModel = viewModel,
-                onNavigateToInventory = { navController.navigate(Screen.Ingredients.route) }
-            )
+            DashboardScreen(viewModel = viewModel)
         }
         composable(Screen.Ingredients.route) {
             val viewModel: DashboardViewModel = viewModel(

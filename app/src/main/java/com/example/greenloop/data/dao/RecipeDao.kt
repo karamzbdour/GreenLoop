@@ -15,6 +15,9 @@ interface RecipeDao {
     @Update
     suspend fun updateRecipe(recipe: Recipe)
 
+    @Delete
+    suspend fun deleteRecipe(recipe: Recipe)
+
     @Query("SELECT * FROM recipes WHERE isFavorite = 1")
     fun getFavoriteRecipes(): Flow<List<Recipe>>
     

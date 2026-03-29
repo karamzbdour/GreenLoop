@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.greenloop.api.OpenRouterManager
 import com.example.greenloop.data.model.Ingredient
+import com.example.greenloop.data.model.Recipe
 import com.example.greenloop.data.repository.IngredientRepository
+import com.example.greenloop.data.repository.RecipeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +21,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-class DashboardViewModel(private val repository: IngredientRepository) : ViewModel() {
+class DashboardViewModel(
+    private val repository: IngredientRepository,
+    private val recipeRepository: RecipeRepository? = null
+) : ViewModel() {
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
@@ -31,7 +36,8 @@ class DashboardViewModel(private val repository: IngredientRepository) : ViewMod
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val totalPrice: StateFlow<Double> = inventoryItems.map { items ->
-        items.sumOf { (it.price ?: 0.0) * (extractQuantity(it.quantity)) }
+        items.filter { (extractQuantity(it.quantity)) > 0 }
+            .sumOf { (it.price ?: 0.0) * (extractQuantity(it.quantity)) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     private fun extractQuantity(quantityStr: String?): Int {
@@ -67,7 +73,6 @@ class DashboardViewModel(private val repository: IngredientRepository) : ViewMod
             val metadata = root.optJSONObject("metadata")
             val itemsArray = root.getJSONArray("items")
             
-            // Parse shop date if available, otherwise use current time
             val shopDateStr = metadata?.optString("shop_date", "")
             val shopDateLong = if (!shopDateStr.isNullOrEmpty()) {
                 try {
@@ -86,14 +91,15 @@ class DashboardViewModel(private val repository: IngredientRepository) : ViewMod
                 
                 val calendar = Calendar.getInstance()
                 calendar.timeInMillis = shopDateLong
-                calendar.add(Calendar.DAY_OF_YEAR, daysToExpiry)
+                calendar.add(Calendar.DAY_OF_YEAR, daysToExpiry + 1)
                 
                 val existingIngredient = repository.getIngredientByNameAndCategory(name, category)
                 if (existingIngredient != null) {
                     val currentQty = extractQuantity(existingIngredient.quantity)
                     val updatedIngredient = existingIngredient.copy(
                         quantity = "x${currentQty + 1}",
-                        expiryDate = calendar.timeInMillis // Update to latest expiry if needed, or keep oldest? Usually latest is safer for fresh stock.
+                        expiryDate = calendar.timeInMillis,
+                        wasRemovedManually = false
                     )
                     repository.updateIngredient(updatedIngredient)
                 } else {
@@ -103,7 +109,8 @@ class DashboardViewModel(private val repository: IngredientRepository) : ViewMod
                         expiryDate = calendar.timeInMillis,
                         addedDate = shopDateLong,
                         price = price,
-                        quantity = "x1"
+                        quantity = "x1",
+                        wasRemovedManually = false
                     )
                     repository.insertIngredient(newItem)
                 }
@@ -113,35 +120,86 @@ class DashboardViewModel(private val repository: IngredientRepository) : ViewMod
         }
     }
 
-    fun addIngredient(name: String, category: String, expiryDays: Int, price: Double) {
+    fun addIngredient(name: String, expiryDays: Int, price: Double, manualCategory: String? = null) {
         viewModelScope.launch {
-            val calendar = Calendar.getInstance()
-            calendar.add(Calendar.DAY_OF_YEAR, expiryDays)
+            // Only show scanning state if we need to categorize via AI
+            val needsCategorization = manualCategory == null && 
+                inventoryItems.value.none { it.name.equals(name, ignoreCase = true) }
             
-            val existingIngredient = repository.getIngredientByNameAndCategory(name, category)
-            if (existingIngredient != null) {
-                val currentQty = extractQuantity(existingIngredient.quantity)
-                val updatedIngredient = existingIngredient.copy(
-                    quantity = "x${currentQty + 1}",
-                    expiryDate = calendar.timeInMillis
-                )
-                repository.updateIngredient(updatedIngredient)
+            if (needsCategorization) _isScanning.value = true
+            
+            try {
+                var category = manualCategory
+                
+                if (category == null) {
+                    val existingItem = inventoryItems.value.find { it.name.equals(name, ignoreCase = true) }
+                    category = existingItem?.category
+                }
+                
+                if (category == null) {
+                    val existingCategories = inventoryItems.value.map { it.category }.distinct()
+                    category = OpenRouterManager.categorizeItem(name, existingCategories) ?: "Uncategorized"
+                }
+                
+                val calendar = Calendar.getInstance()
+                calendar.add(Calendar.DAY_OF_YEAR, expiryDays + 1)
+                
+                val existingIngredient = repository.getIngredientByNameAndCategory(name, category)
+                if (existingIngredient != null) {
+                    val currentQty = extractQuantity(existingIngredient.quantity)
+                    val updatedIngredient = existingIngredient.copy(
+                        quantity = "x${currentQty + 1}",
+                        expiryDate = calendar.timeInMillis,
+                        wasRemovedManually = false
+                    )
+                    repository.updateIngredient(updatedIngredient)
+                } else {
+                    val newItem = Ingredient(
+                        name = name,
+                        category = category,
+                        expiryDate = calendar.timeInMillis,
+                        price = price,
+                        quantity = "x1",
+                        wasRemovedManually = false
+                    )
+                    repository.insertIngredient(newItem)
+                }
+            } finally {
+                if (needsCategorization) _isScanning.value = false
+            }
+        }
+    }
+
+    fun incrementQuantity(ingredient: Ingredient) {
+        viewModelScope.launch {
+            val currentQty = extractQuantity(ingredient.quantity)
+            repository.updateIngredient(ingredient.copy(
+                quantity = "x${currentQty + 1}",
+                wasRemovedManually = false
+            ))
+        }
+    }
+
+    fun removeOne(ingredient: Ingredient) {
+        viewModelScope.launch {
+            val currentQty = extractQuantity(ingredient.quantity)
+            if (currentQty > 1) {
+                repository.updateIngredient(ingredient.copy(quantity = "x${currentQty - 1}"))
             } else {
-                val newItem = Ingredient(
-                    name = name,
-                    category = category,
-                    expiryDate = calendar.timeInMillis,
-                    price = price,
-                    quantity = "x1"
-                )
-                repository.insertIngredient(newItem)
+                repository.updateIngredient(ingredient.copy(quantity = "x0", wasRemovedManually = true))
             }
         }
     }
 
     fun deleteIngredient(ingredient: Ingredient) {
         viewModelScope.launch {
-            repository.deleteIngredient(ingredient)
+            repository.updateIngredient(ingredient.copy(quantity = "x0", wasRemovedManually = true))
+        }
+    }
+    
+    fun deleteRecipe(recipe: Recipe) {
+        viewModelScope.launch {
+            recipeRepository?.deleteRecipe(recipe)
         }
     }
 
@@ -151,11 +209,14 @@ class DashboardViewModel(private val repository: IngredientRepository) : ViewMod
         }
     }
 
-    class Factory(private val repository: IngredientRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: IngredientRepository,
+        private val recipeRepository: RecipeRepository? = null
+    ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(DashboardViewModel::class.java)) {
                 @Suppress("UNCHECKED_CAST")
-                return DashboardViewModel(repository) as T
+                return DashboardViewModel(repository, recipeRepository) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

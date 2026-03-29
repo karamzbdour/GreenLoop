@@ -1,6 +1,8 @@
 package com.example.greenloop.ui.ingredients
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,18 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -29,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.greenloop.data.model.Ingredient
 import com.example.greenloop.ui.dashboard.DashboardViewModel
 import com.example.greenloop.ui.dashboard.ExpiryStatus
+import com.example.greenloop.ui.dashboard.CategoryIcon
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,6 +37,17 @@ fun IngredientsScreen(
 ) {
     val inventoryItems by viewModel.inventoryItems.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
+
+    // Filter to show only items with quantity > 0
+    val activeItems = inventoryItems.filter { 
+        (it.quantity?.removePrefix("x")?.toIntOrNull() ?: 1) > 0 
+    }
+
+    // Group items by category
+    val groupedItems = activeItems.groupBy { it.category }
+    
+    // State to track expanded categories
+    val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
 
     Scaffold(
         topBar = {
@@ -74,20 +83,36 @@ fun IngredientsScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            if (inventoryItems.isEmpty()) {
+            if (activeItems.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No ingredients in inventory.")
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    items(inventoryItems, key = { it.id }) { item ->
-                        DashboardIngredientCard(
-                            item = item,
-                            onDelete = { viewModel.deleteIngredient(item) }
-                        )
+                    groupedItems.forEach { (category, items) ->
+                        val isExpanded = expandedCategories[category] ?: true
+                        
+                        item(key = category) {
+                            CategoryHeader(
+                                category = category,
+                                itemCount = items.size,
+                                isExpanded = isExpanded,
+                                onToggle = { expandedCategories[category] = !isExpanded }
+                            )
+                        }
+
+                        if (isExpanded) {
+                            items(items, key = { it.id }) { item ->
+                                DashboardIngredientCard(
+                                    item = item,
+                                    onRemove = { viewModel.removeOne(item) },
+                                    onAdd = { viewModel.incrementQuantity(item) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -96,8 +121,8 @@ fun IngredientsScreen(
         if (showAddDialog) {
             AddIngredientDialog(
                 onDismiss = { showAddDialog = false },
-                onConfirm = { name, category, expiryDays, price ->
-                    viewModel.addIngredient(name, category, expiryDays, price)
+                onConfirm = { name, expiryDays, price ->
+                    viewModel.addIngredient(name, expiryDays, price)
                     showAddDialog = false
                 }
             )
@@ -106,52 +131,90 @@ fun IngredientsScreen(
 }
 
 @Composable
-fun DashboardIngredientCard(item: Ingredient, onDelete: () -> Unit) {
-    Card(
+fun CategoryHeader(
+    category: String,
+    itemCount: Int,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Surface(
+        onClick = onToggle,
         modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = category,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f),
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Text("$itemCount")
+                }
+            }
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+fun DashboardIngredientCard(item: Ingredient, onRemove: () -> Unit, onAdd: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    CategoryIcon(category = item.category, modifier = Modifier.size(40.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
                         Text(
                             text = item.name,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (item.quantity != null && item.quantity != "x1") {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = item.quantity,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
-                    Text(
-                        text = item.category,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
                 }
                 
-                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                    Icon(
-                        Icons.Default.Delete, 
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Remove, contentDescription = "Remove")
+                    }
+                    Text(
+                        text = item.quantity ?: "x1",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
+                    IconButton(onClick = onAdd, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = "Add")
+                    }
                 }
             }
 
@@ -167,13 +230,10 @@ fun DashboardIngredientCard(item: Ingredient, onDelete: () -> Unit) {
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold
                 )
+                
+                val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
+                ExpiryStatus(daysRemaining)
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Expiry Progress
-            val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
-            ExpiryStatus(daysRemaining)
         }
     }
 }
@@ -181,10 +241,9 @@ fun DashboardIngredientCard(item: Ingredient, onDelete: () -> Unit) {
 @Composable
 fun AddIngredientDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String, String, Int, Double) -> Unit
+    onConfirm: (String, Int, Double) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Cupboard") }
     var expiryDays by remember { mutableStateOf("7") }
     var price by remember { mutableStateOf("") }
 
@@ -197,12 +256,6 @@ fun AddIngredientDialog(
                     value = name, 
                     onValueChange = { name = it }, 
                     label = { Text("Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = category, 
-                    onValueChange = { category = it }, 
-                    label = { Text("Category") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -225,7 +278,6 @@ fun AddIngredientDialog(
             Button(onClick = {
                 onConfirm(
                     name,
-                    category,
                     expiryDays.toIntOrNull() ?: 7,
                     price.toDoubleOrNull() ?: 0.0
                 )

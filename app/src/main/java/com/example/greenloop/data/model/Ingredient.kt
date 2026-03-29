@@ -12,5 +12,6 @@ data class Ingredient(
     val quantity: String? = null,
     val addedDate: Long = System.currentTimeMillis(),
     val price: Double? = null,
-    val isExpired: Boolean = false
+    val isExpired: Boolean = false,
+    val wasRemovedManually: Boolean = false
 )

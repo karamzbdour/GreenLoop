@@ -31,6 +31,9 @@ class RecipeViewModel(
     val inventory: StateFlow<List<Ingredient>> = ingredientRepository.allIngredients
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val savedRecipes: StateFlow<List<Recipe>> = recipeRepository.allRecipes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _selectedIngredients = MutableStateFlow<Set<Int>>(emptySet())
     val selectedIngredients: StateFlow<Set<Int>> = _selectedIngredients.asStateFlow()
 
@@ -64,12 +67,17 @@ class RecipeViewModel(
             _errorMessage.value = null
             try {
                 val selectedNames = inventory.value
-                    .filter { it.id in selectedIds }
+                    .filter { it.id in selectedIds && (it.quantity?.removePrefix("x")?.toIntOrNull() ?: 1) > 0 }
                     .joinToString(", ") { it.name }
+
+                if (selectedNames.isEmpty()) {
+                    _errorMessage.value = "Selected ingredients are out of stock."
+                    return@launch
+                }
 
                 val prompt = """
                     Generate at least 3 simple waste-reducing recipes using these ingredients: ${selectedNames}.
-                    The recipes must be optimized to rescue these items from being wasted.
+                    The recipes must be optimized to use these items from being wasted.
                     Response MUST be a strict JSON array of objects with this structure:
                     [
                       {
@@ -84,7 +92,6 @@ class RecipeViewModel(
 
                 val responseText = OpenRouterManager.generateContent(prompt) ?: ""
                 
-                // Clean the response if it contains markdown code blocks
                 val jsonString = responseText.substringAfter("```json").substringBeforeLast("```").trim()
                 val finalJson = if (jsonString.isEmpty()) responseText.trim() else jsonString
                 
@@ -96,46 +103,39 @@ class RecipeViewModel(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                _errorMessage.value = "Error generating recipes: ${e.localizedMessage}. Please check your OPENROUTER_API_KEY in local.properties."
+                _errorMessage.value = "Error generating recipes: ${e.localizedMessage}"
             } finally {
                 _isGenerating.value = false
             }
         }
     }
 
-    private fun extractQuantity(quantityStr: String?): Int {
-        if (quantityStr == null) return 1
-        return try {
-            quantityStr.removePrefix("x").toIntOrNull() ?: 1
-        } catch (e: Exception) {
-            1
+    fun useRecipe(recipe: GeneratedRecipe) {
+        viewModelScope.launch {
+            val selectedIds = _selectedIngredients.value
+            val selectedIngredients = inventory.value.filter { it.id in selectedIds }
+            val ingredientNames = selectedIngredients.joinToString(", ") { it.name }
+            val co2Saved = selectedIds.size * 0.5
+
+            val newRecipe = Recipe(
+                title = recipe.recipeName,
+                description = "Custom upcycled recipe using $ingredientNames",
+                ingredients = ingredientNames,
+                steps = recipe.steps.joinToString("\n"),
+                preparationTime = recipe.prepTimeMinutes,
+                difficulty = recipe.difficulty,
+                co2Saved = co2Saved,
+                isWasteReducing = true
+            )
+            recipeRepository.insertRecipe(newRecipe)
+            
+            _generatedRecipes.update { current -> current.filter { it.recipeName != recipe.recipeName } }
         }
     }
 
-    fun completeGeneratedRecipe(recipe: GeneratedRecipe) {
-        val selectedIds = _selectedIngredients.value
-
+    fun deleteSavedRecipe(recipe: Recipe) {
         viewModelScope.launch {
-            val selectedIngredients = inventory.value.filter { it.id in selectedIds }
-            val moneySaved = selectedIngredients.sumOf { (it.price ?: 0.0) * extractQuantity(it.quantity) }
-
-            // Save to history
-            val history = UpcycleHistory(
-                recipeId = -1, // AI generated
-                recipeTitle = recipe.recipeName,
-                co2Saved = selectedIds.size * 0.5, // Estimated 0.5kg per ingredient rescued
-                moneySaved = moneySaved
-            )
-            historyRepository.insertHistory(history)
-
-            // Remove used ingredients from inventory
-            selectedIngredients.forEach {
-                ingredientRepository.deleteIngredient(it)
-            }
-
-            // Reset state
-            _generatedRecipes.value = emptyList()
-            _selectedIngredients.value = emptySet()
+            recipeRepository.deleteRecipe(recipe)
         }
     }
 

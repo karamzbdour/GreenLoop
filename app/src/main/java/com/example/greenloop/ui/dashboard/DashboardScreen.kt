@@ -1,5 +1,6 @@
 package com.example.greenloop.ui.dashboard
 
+import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,12 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Fastfood
-import androidx.compose.material.icons.filled.Kitchen
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,10 +45,10 @@ fun DashboardScreen(
     
     val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 
-    // Items expiring in under 3 days
+    // Items expiring in under 3 days and currently in stock
     val expiringSoonItems = inventoryItems.filter { item ->
         val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
-        daysRemaining < 3
+        daysRemaining < 3 && (item.quantity?.removePrefix("x")?.toIntOrNull() ?: 1) > 0
     }
 
     if (showCamera) {
@@ -103,7 +100,6 @@ fun DashboardScreen(
                         .fillMaxSize()
                         .padding(16.dp)
                 ) {
-                    // Integrated Inventory Card (Replaces the big TotalValueCard)
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -156,7 +152,7 @@ fun DashboardScreen(
                                         )
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                text = "${inventoryItems.size} items",
+                                                text = "${inventoryItems.count { (it.quantity?.removePrefix("x")?.toIntOrNull() ?: 1) > 0 }} items",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                                             )
@@ -186,7 +182,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = "Quick View",
+                        text = "Expiring Soon",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -204,14 +200,14 @@ fun DashboardScreen(
                             items(expiringSoonItems, key = { it.id }) { item ->
                                 IngredientCard(
                                     item = item,
-                                    onDelete = { viewModel.deleteIngredient(item) }
+                                    onRemove = { viewModel.removeOne(item) },
+                                    onAdd = { viewModel.incrementQuantity(item) }
                                 )
                             }
                         }
                     }
                 }
                 
-                // Scanning Overlay
                 AnimatedVisibility(
                     visible = isScanning,
                     enter = fadeIn(),
@@ -243,110 +239,110 @@ fun DashboardScreen(
 }
 
 @Composable
-fun IngredientCard(item: Ingredient, onDelete: () -> Unit) {
+fun IngredientCard(item: Ingredient, onRemove: () -> Unit, onAdd: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = item.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        if (item.quantity != null && item.quantity != "x1") {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = item.quantity,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                CategoryIcon(category = item.category)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
                     Text(
-                        text = item.category,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                
-                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
-                    Icon(
-                        Icons.Default.Delete, 
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Price Tag
-                item.price?.let {
-                    Text(
-                        text = "£${String.format(Locale.UK, "%.2f", it)}",
+                        text = item.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.secondary
+                        fontWeight = FontWeight.Bold
                     )
+                    val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
+                    ExpiryStatus(daysRemaining)
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "Remove", tint = MaterialTheme.colorScheme.primary)
+                }
+                Text(
+                    text = item.quantity?.removePrefix("x") ?: "1",
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(
+                    onClick = onAdd,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
+@Composable
+fun CategoryIcon(category: String, modifier: Modifier = Modifier) {
+    val categoryLower = category.lowercase()
+    val (icon, tint, bgColor) = when {
+        categoryLower.contains("dairy") || categoryLower.contains("milk") || categoryLower.contains("cheese") -> 
+            Triple(Icons.Default.LocalDrink, Color(0xFF1976D2), Color(0xFFE3F2FD))
+        categoryLower.contains("veg") || categoryLower.contains("fruit") || categoryLower.contains("produce") -> 
+            Triple(Icons.Default.Eco, Color(0xFF388E3C), Color(0xFFE8F5E9))
+        categoryLower.contains("meat") || categoryLower.contains("chicken") || categoryLower.contains("beef") || categoryLower.contains("pork") -> 
+            Triple(Icons.Default.Restaurant, Color(0xFFD84315), Color(0xFFFBE9E7))
+        categoryLower.contains("fish") || categoryLower.contains("seafood") -> 
+            Triple(Icons.Default.SetMeal, Color(0xFF0097A7), Color(0xFFE0F7FA))
+        categoryLower.contains("drink") || categoryLower.contains("beverage") || categoryLower.contains("juice") -> 
+            Triple(Icons.Default.LocalDrink, Color(0xFFFBC02D), Color(0xFFFFF9C4))
+        categoryLower.contains("bakery") || categoryLower.contains("bread") -> 
+            Triple(Icons.Default.BreakfastDining, Color(0xFF8D6E63), Color(0xFFEFEBE9))
+        categoryLower.contains("frozen") -> 
+            Triple(Icons.Default.AcUnit, Color(0xFF0288D1), Color(0xFFE1F5FE))
+        else -> 
+            Triple(Icons.Default.Fastfood, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
+    }
 
-            // Expiry Progress
-            val daysRemaining = ((item.expiryDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
-            ExpiryStatus(daysRemaining)
+    Surface(
+        color = bgColor,
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.size(48.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = category,
+                tint = tint,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
 
 @Composable
 fun ExpiryStatus(daysRemaining: Int) {
-    val (statusText, color) = when {
-        daysRemaining < 0 -> "Expired" to Color.Gray
-        daysRemaining == 0 -> "Expires Today" to Color(0xFFD32F2F)
-        daysRemaining == 1 -> "Expires Tomorrow" to Color(0xFFF57C00)
-        daysRemaining <= 3 -> "$daysRemaining days left" to Color(0xFFFFA000)
-        else -> "$daysRemaining days left" to Color(0xFF388E3C)
+    val (text, color) = when {
+        daysRemaining < 0 -> "Expired" to MaterialTheme.colorScheme.error
+        daysRemaining < 2 -> "Expires in $daysRemaining days" to MaterialTheme.colorScheme.error
+        daysRemaining < 5 -> "Expires in $daysRemaining days" to Color(0xFFF57C00) // Orange
+        else -> "Expires in $daysRemaining days" to Color(0xFF388E3C) // Green
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(color.copy(alpha = 0.1f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+    Surface(
+        color = color.copy(alpha = 0.1f),
+        shape = RoundedCornerShape(8.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = statusText,
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             color = color,
             fontWeight = FontWeight.Bold
@@ -358,27 +354,21 @@ fun ExpiryStatus(daysRemaining: Int) {
 fun EmptyInventoryPlaceholder() {
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = 64.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .fillMaxWidth()
+            .padding(vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            Icons.Default.Fastfood,
+            Icons.Default.Kitchen,
             contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primaryContainer
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "Nothing expiring soon!",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            "Your items are all safe for now.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            "No items expiring soon!",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.outline
         )
     }
 }

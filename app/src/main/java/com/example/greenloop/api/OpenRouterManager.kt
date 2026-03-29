@@ -50,6 +50,10 @@ object OpenRouterManager {
                - "CHICK BRST FLLT" -> "Chicken Breast Fillets"
             4. No Hallucinations: If a value is unknown, set to null. Do not invent data.
             5. Expiry Logic: Calculate 'days_to_expiry' based on standard USDA FoodKeeper shelf-life from the shop_date.
+               ASSUMPTIONS: 
+               - Assume all food items will be refrigerated immediately.
+               - Most fresh food items typically last a minimum of 3-5 days when refrigerated. 
+               - Ensure 'days_to_expiry' is at least 3-5 days for fresh items, unless the specific item is known to spoil faster even when refrigerated.
 
             ### OUTPUT SCHEMA:
             Return ONLY a valid JSON object:
@@ -98,6 +102,35 @@ object OpenRouterManager {
             response.choices.firstOrNull()?.message?.content
         } catch (e: Exception) {
             "Error: ${e.message}"
+        }
+    }
+
+    suspend fun categorizeItem(itemName: String, existingCategories: List<String>): String? {
+        val prompt = """
+            Categorize the following food item: "$itemName".
+            Available existing categories in the app: ${existingCategories.joinToString(", ")}.
+            If the item fits into one of the existing categories, use that.
+            If not, create a new, logical food category (e.g., Dairy, Produce, Meat, Bakery, Pantry, Snacks, Drinks).
+            Return ONLY the category name as a single string. No punctuation.
+        """.trimIndent()
+
+        val request = OpenRouterRequest(
+            messages = listOf(
+                Message(
+                    role = "user",
+                    content = listOf(MessageContent(type = "text", text = prompt))
+                )
+            )
+        )
+
+        return try {
+            val response = service.getCompletion(
+                apiKey = "Bearer ${BuildConfig.OPENROUTER_API_KEY}",
+                request = request
+            )
+            response.choices.firstOrNull()?.message?.content?.trim()
+        } catch (e: Exception) {
+            null
         }
     }
 

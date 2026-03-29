@@ -16,6 +16,8 @@ import com.example.greenloop.ui.progress.ProgressViewModel
 import com.example.greenloop.ui.progress.SustainabilityTrackerScreen
 import com.example.greenloop.ui.recipes.RecipeLibraryScreen
 import com.example.greenloop.ui.recipes.RecipeViewModel
+import com.example.greenloop.ui.shoppinglist.ShoppingListScreen
+import com.example.greenloop.ui.shoppinglist.ShoppingListViewModel
 
 @Composable
 fun NavGraph(navController: NavHostController) {
@@ -30,13 +32,27 @@ fun NavGraph(navController: NavHostController) {
             val viewModel: DashboardViewModel = viewModel(
                 factory = DashboardViewModel.Factory(app.ingredientRepository)
             )
-            DashboardScreen(viewModel = viewModel)
+            DashboardScreen(
+                viewModel = viewModel,
+                onNavigateToInventory = {
+                    navController.navigate(Screen.Ingredients.route)
+                }
+            )
         }
         composable(Screen.Ingredients.route) {
             val viewModel: DashboardViewModel = viewModel(
                 factory = DashboardViewModel.Factory(app.ingredientRepository)
             )
-            IngredientsScreen(viewModel = viewModel)
+            IngredientsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.ShoppingList.route) {
+            val viewModel: ShoppingListViewModel = viewModel(
+                factory = ShoppingListViewModel.Factory(app.ingredientRepository)
+            )
+            ShoppingListScreen(viewModel = viewModel)
         }
         composable(Screen.Recipes.route) {
             val viewModel: RecipeViewModel = viewModel(

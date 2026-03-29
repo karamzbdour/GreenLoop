@@ -4,15 +4,18 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.Kitchen
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
@@ -36,7 +39,10 @@ import com.google.accompanist.permissions.isGranted
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(viewModel: DashboardViewModel) {
+fun DashboardScreen(
+    viewModel: DashboardViewModel,
+    onNavigateToInventory: () -> Unit = {}
+) {
     val inventoryItems by viewModel.inventoryItems.collectAsStateWithLifecycle()
     val totalPrice by viewModel.totalPrice.collectAsStateWithLifecycle()
     val isScanning by viewModel.isScanning.collectAsStateWithLifecycle()
@@ -65,7 +71,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 CenterAlignedTopAppBar(
                     title = { 
                         Text(
-                            "GreenLoop Fridge", 
+                            "GreenLoop Dashboard", 
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp
                         ) 
@@ -93,13 +99,90 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                         .fillMaxSize()
                         .padding(16.dp)
                 ) {
-                    // Summary Card
-                    TotalValueCard(totalPrice, inventoryItems.size)
+                    // Integrated Inventory Card (Replaces the big TotalValueCard)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToInventory() },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary
+                                        )
+                                    )
+                                )
+                                .padding(20.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                                        shape = CircleShape,
+                                        modifier = Modifier.size(56.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.Kitchen,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column {
+                                        Text(
+                                            text = "My Inventory",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "${inventoryItems.size} items",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                            )
+                                            Text(
+                                                text = " • ",
+                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                                            )
+                                            Text(
+                                                text = "$${String.format(Locale.US, "%.2f", totalPrice)}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        }
+                                    }
+                                }
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                    contentDescription = "Go to Inventory",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = "My Inventory",
+                        text = "Quick View",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -114,11 +197,21 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(bottom = 80.dp)
                         ) {
-                            items(inventoryItems, key = { it.id }) { item ->
+                            items(inventoryItems.take(5), key = { it.id }) { item ->
                                 IngredientCard(
                                     item = item,
                                     onDelete = { viewModel.deleteIngredient(item) }
                                 )
+                            }
+                            if (inventoryItems.size > 5) {
+                                item {
+                                    TextButton(
+                                        onClick = onNavigateToInventory,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("View All Inventory (${inventoryItems.size})")
+                                    }
+                                }
                             }
                         }
                     }
@@ -149,61 +242,6 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TotalValueCard(totalPrice: Double, itemCount: Int) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary
-                        )
-                    )
-                )
-                .padding(24.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Total Value",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        text = "$${String.format(Locale.US, "%.2f", totalPrice)}",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-                Surface(
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "$itemCount Items",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
         }

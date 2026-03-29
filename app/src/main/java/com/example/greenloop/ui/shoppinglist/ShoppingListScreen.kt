@@ -1,5 +1,6 @@
 package com.example.greenloop.ui.shoppinglist
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -43,6 +45,8 @@ class ShoppingListViewModel(private val repository: IngredientRepository) : View
 @Composable
 fun ShoppingListScreen(viewModel: ShoppingListViewModel) {
     val items by viewModel.suggestedItems.collectAsStateWithLifecycle()
+    // State to track checked items locally
+    val checkedItems = remember { mutableStateMapOf<String, Boolean>() }
 
     Scaffold(
         topBar = {
@@ -86,10 +90,16 @@ fun ShoppingListScreen(viewModel: ShoppingListViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(items) { itemName ->
+                        val isChecked = checkedItems[itemName] ?: false
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { checkedItems[itemName] = !isChecked },
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                containerColor = if (isChecked) 
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
+                                else 
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             )
                         ) {
                             Row(
@@ -98,12 +108,17 @@ fun ShoppingListScreen(viewModel: ShoppingListViewModel) {
                                     .fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(checked = false, onCheckedChange = {})
+                                Checkbox(
+                                    checked = isChecked, 
+                                    onCheckedChange = { checkedItems[itemName] = it }
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = itemName,
                                     style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    textDecoration = if (isChecked) TextDecoration.LineThrough else TextDecoration.None,
+                                    color = if (isChecked) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }

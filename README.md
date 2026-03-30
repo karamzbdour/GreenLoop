@@ -1,52 +1,55 @@
-# 🌿 GreenLoop: The AI-Powered Biowaste Upcycling Assistant
+# DigiFridge 📱:
 
-**GreenLoop** turns your grocery waste into valuable resources. By combining OCR receipt scanning with a **Retrieval-Augmented Generation (RAG)** pipeline, we help users stop throwing away potential and start upcycling.
-
----
-
-## 🚀 The Vision
-Every year, billions of tons of food waste end up in landfills, contributing to 8% of global greenhouse gas emissions. **GreenLoop** gamifies the solution. Instead of manual data entry, we use AI to track your inventory and provide scientifically-backed upcycling "Tasks" (like making date-pit coffee or banana peel fertilizer) to ensure nothing goes to waste.
-
-## 🛠️ Technical Architecture
-We avoided building a "thin wrapper." Our backend uses a complex pipeline to ensure data accuracy and user safety.
-
-| Layer | Technology | Role |
-| :--- | :--- | :--- |
-| **Mobile Frontend** | Android (Kotlin, Jetpack Compose) | Native performance & modern UI/UX |
-| **AI Orchestration** | FastAPI (Python) | High-speed asynchronous logic |
-| **Intelligence** | Gemini 2.5 Flash | Multimodal OCR & Contextual Synthesis |
-| **Data Engine** | RAG (ChromaDB + Vector Embeddings) | Grounding AI in verified upcycling methods |
-| **Architecture** | MVVM | Clean separation of concerns |
-
-
-
-## ✨ Key Features
-* **📸 Smart Receipt Scanner:** Snap a photo of your grocery receipt. Gemini Vision extracts items and estimates shelf-life automatically.
-* **🧠 RAG-Powered Task Engine:** We don't just "guess." Our AI queries a curated database of upcycling methods to provide step-by-step guides.
-* **📊 Impact Dashboard:** Track your progress with real-time metrics on estimated CO₂ and water saved.
-* **♻️ Active Task Tracking:** Start long-term projects (like composting) and track your progress over days or weeks.
-
-## 🏗️ Project Structure
-* `app/`: Android Studio project (Kotlin/Compose).
-* `server/`: FastAPI backend and RAG logic.
-* `data/`: Curated JSON/Markdown files for the vector database.
-
-## 🚦 Getting Started
-1. **Clone the repository:** `git clone https://github.com/[YOUR-USERNAME]/GreenLoop.git`
-2. **Backend Setup:**
-   * Install requirements: `pip install -r requirements.txt`
-   * Set your `GOOGLE_API_KEY` in `.env`.
-   * Run: `uvicorn main:app --reload`
-3. **Android Setup:**
-   * Open the `app/` folder in Android Studio.
-   * Sync Gradle (Kotlin DSL).
-   * Run on an emulator or physical device (API 33+ recommended).
+**Turning your fridge from a "passive storage space" into a proactive, zero-waste ecosystem.**
 
 ---
 
-## 🔮 Future Roadmap
-- [ ] **Smart Fridge Integration:** Syncing with IoT APIs for real-time inventory.
-- [ ] **Community Marketplace:** Sharing upcycled products with neighbors.
-- [ ] **Barcode Scanning:** For non-receipt items.
+## 🌟 Inspiration
+We’ve all experienced that Friday evening disappointment: opening the fridge after a long week only to find ingredients we paid for heading straight for the bin. This isn't just a personal frustration; it’s a global crisis. 
+* **Financial Impact:** UK households discard **£17 billion** worth of food annually. 
+* **The "Oversight" Problem:** Nearly **40%** of that waste is caused simply by forgotten expiration dates.
 
-**Developed with ❤️ during the 2026 University of Bath Hackathon.**
+**DigiFridge** was built to bridge the gap between "buying" and "consuming," ensuring no meal goes to waste just because life got busy.
+
+## ✨ What It Does
+DigiFridge transforms a paper receipt into a proactive kitchen assistant using a "Single-Touch" AI pipeline:
+1. **AI Receipt Scanning:** A single photo digitises your entire grocery shop into a live inventory using Computer Vision.
+2. **Smart Inventory:** Automatically estimates expiration windows for every perishable item.
+3. **Waste-Reducing Recipes:** A dynamic generator (powered by Gemini) suggests custom dishes that **prioritise your "at-risk" ingredients**.
+4. **CO2 Impact Tracking:** Visualises the environmental impact of every ingredient you rescue.
+
+## 🛠️ Tech Stack
+* **Frontend:** Kotlin, Jetpack Compose, Material 3, Room DB (Local Storage).
+* **Backend:** OkHttp for networking.
+* **AI/ML:** Google Gemini API for receipt parsing and recipe generation.
+* **Architecture:** MVVM (Model-View-ViewModel) with Repository pattern.
+
+## 🚀 Accomplishments We're Proud Of
+* **One-Input Reality:** We successfully reduced a data-entry nightmare into a seamless, one-click experience.
+* **Parsing Consistency:** Our backend consistently handles high-density receipts, delivering concise, error-free digital inventories.
+* **Intuitive UX:** A minimalist design that makes sustainable living a frictionless part of a daily routine.
+
+## 🔮 What's Next: The Smart Kitchen
+Our roadmap takes GreenLoop from a mobile tool to an **embedded IoT standard**. We are developing a vision to move our tracking logic directly into the next generation of smart fridges. By utilising internal cameras, the fridge itself will autonomously manage your household's carbon footprint—no scanning required.
+
+---
+
+## ⚙️ Installation & Setup
+
+### Prerequisites
+* Android Studio (Koala or newer)
+* A Gemini API Key
+* **Optional** An Android device to run the app on
+
+
+### Setup
+```text
+1. Clone the repository to your local machine.
+2. Open the project in Android Studio.
+4. Sync project with Gradle files.
+5. Build and run the project using an emulated device in Android Studio (Or optionally add your physical Android device from the 'My devices' Tab).
+```
+
+---
+
+**Developed with :heart: for BathHack 2026**
